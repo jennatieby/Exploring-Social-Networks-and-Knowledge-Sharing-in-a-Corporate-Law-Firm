@@ -1,0 +1,1250 @@
+---
+title: "Final case - Law firm analysis"
+output: html_notebook
+authors: Marevi, Rakel, Jenna
+---
+
+# Libraries
+```{r, warning=FALSE}
+# Base -----------------------------
+library(igraph)
+library(tidyverse)
+
+# Viz ------------------------------
+library(RColorBrewer)
+library(DT)
+library(texreg)
+library(writexl)
+```
+
+# Networks
+
+```{r}
+work <- read_graph("work.gml", format="gml")
+friend <- read_graph("friend.gml", format="gml")
+advice <- read_graph("advice.gml", format="gml")
+L_advice <- read_graph("learn_advice.gml", format="gml")
+```
+
+# Preliminary analysis
+
+## Determine the most relevant nodes
+
+### Centralization
+
+#### friend network
+```{r}
+centralizations <- data.frame(indegree = centralization.degree(friend, mode = "in")$centralization,
+                              outdegree = centralization.degree(friend, mode = "out")$centralization,
+                              betweeneess = centralization.betweenness(friend, 
+                                                                       directed = TRUE)$centralization,
+                              eigen = centralization.evcent(friend, directed = TRUE)$centralization,
+                              closeness = centralization.closeness(friend, mode = "all")$centralization)
+                      
+centralizations
+```
+
+#### advice network
+```{r}
+centralizations <- data.frame(indegree = centralization.degree(advice, mode = "in")$centralization,
+                              outdegree = centralization.degree(advice, mode = "out")$centralization,
+                              betweeneess = centralization.betweenness(advice, 
+                                                                       directed = TRUE)$centralization,
+                              eigen = centralization.evcent(advice, directed = TRUE)$centralization,
+                              closeness = centralization.closeness(advice, mode = "all")$centralization)
+                      
+centralizations
+```
+
+#### work network
+```{r}
+centralizations <- data.frame(
+                              degree = centralization.degree(work, mode = "all")$centralization, 
+                              betweenness = centralization.betweenness(work, directed = FALSE)$centralization,
+                              eigen = centralization.evcent(work, directed = FALSE)$centralization,
+                              closeness = centralization.closeness(work, mode = "all")$centralization)
+
+centralizations
+```
+
+```{r}
+centralizations <- data.frame(network = c("advice", "friend","work"),
+                              indegree = c(centralization.degree(advice, mode = "in")$centralization,
+                                           centralization.degree(friend, mode = "in")$centralization,
+                                           centralization.degree(work, mode = "in")$centralization),
+                              outdegree = c(centralization.degree(advice, mode = "out")$centralization,
+                                            centralization.degree(friend, mode = "out")$centralization,
+                                            centralization.degree(work, mode = "out")$centralization),
+                              betweenness = c(centralization.betweenness(advice, directed = TRUE)$centralization,
+                                              centralization.betweenness(friend, directed = TRUE)$centralization,
+                                              centralization.betweenness(work, directed = FALSE)$centralization),
+                              eigen = c(centralization.evcent(advice, directed = TRUE)$centralization,
+                                        centralization.evcent(friend, directed = TRUE)$centralization,
+                                        centralization.evcent(work, directed = FALSE)$centralization),
+                              closeness = c(centralization.closeness(advice, mode = "all")$centralization,
+                                            centralization.closeness(friend, mode = "all")$centralization,
+                                            centralization.closeness(work, mode = "all")$centralization)
+                              )
+
+centralizations
+```
+
+### Centralities - gregariousness / prestige
+
+```{r}
+centralities <- data.frame(network = c(rep("advice", gorder(advice)),
+                                       rep("friend", gorder(friend)),
+                                       rep("work", gorder(work))),
+                           lawyer = c(V(advice)$name,
+                                       V(friend)$name,
+                                       V(work)$name),
+                           indegree = c(degree(advice,
+                                               mode = "in",
+                                               normalized = TRUE),
+                                        degree(friend,
+                                               mode = "in",
+                                               normalized = TRUE),
+                                        degree(work,
+                                               mode = "in",
+                                               normalized = TRUE)),
+                           outdegree = c(degree(advice,
+                                                mode = "out",
+                                                normalized = TRUE),
+                                         degree(friend,
+                                                mode = "out",
+                                                normalized = TRUE),
+                                         degree(work,
+                                                mode = "out",
+                                                normalized = TRUE)),
+                           eigen_central = c(eigen_centrality(advice)$vector,
+                                             eigen_centrality(friend)$vector,
+                                             eigen_centrality(work)$vector))
+
+```
+
+```{r}
+nets <- list(advice, friend, work)
+names(nets) <- c("advice", "friend", "work")
+cents <- names(centralities)[-c(1,2)]
+
+for (i in cents){
+  cat("\n", paste("By", i), "\n")
+  
+  dat <- data.frame()
+  for (j in 1:length(nets)){
+    vars <- c("network", "lawyer", i)
+    dat <- rbind(dat, centralities[order(centralities[i], 
+                              decreasing = TRUE), ] %>%
+      select(all_of(vars)) %>%
+      filter(network == names(nets)[j]) %>%
+      head(3))
+  }
+  print(htmltools::tagList(DT::datatable(dat)))
+}
+
+
+```
+
+```{r}
+nets <- list(advice, friend, work)
+names(nets) <- c("advice", "friend", "work")
+cents <- names(centralities)[-c(1,2)]
+
+for (i in cents){
+  cat("\n", paste("By", i), "\n")
+  
+  dat <- data.frame()
+  for (j in 1:length(nets)){
+    vars <- c("network", "lawyer", i)
+    dat <- rbind(dat, centralities[order(centralities[i], 
+                              decreasing = TRUE), ] %>%
+      select(all_of(vars)) %>%
+      filter(network == names(nets)[j]) %>%
+      head(3))
+  }
+  
+  # Write the datatable to an Excel file
+  #write_xlsx(dat, paste0(i, ".xlsx"))
+}
+
+```
+
+
+```{r}
+nets <- list(advice, friend, work)
+names(nets) <- c("advice", "friend", "work")
+cents <- names(centralities)[-c(1,2)]
+
+for (i in cents){
+  cat("\n", paste("By", i), "\n")
+  
+  dat <- data.frame()
+  for (j in 1:length(nets)){
+    vars <- c("network", "lawyer", i)
+    temp <- centralities[order(centralities[i], 
+                              decreasing = TRUE), ] %>%
+      select(all_of(vars)) %>%
+      filter(network == names(nets)[j]) %>%
+      head(3)
+    
+    # Add sex and status columns
+    temp <- mutate(temp, sex = V(nets[[j]])$sex[V(nets[[j]])$name %in% temp$lawyer],
+                   status = V(nets[[j]])$status[V(nets[[j]])$name %in% temp$lawyer])
+    
+    dat <- rbind(dat, temp)
+  }
+  print(htmltools::tagList(DT::datatable(dat)))
+}
+```
+
+
+## Cohesion - High level of cooperation?
+
+
+```{r}
+metrics <- data.frame(
+                      Density = c(edge_density(advice),
+                                  edge_density(friend),
+                                  edge_density(work)),
+                      APL = c(average.path.length(advice, directed = FALSE),
+                              average.path.length(friend, directed = FALSE),
+                              average.path.length(work, directed = FALSE)),
+                      ACC = c(mean(transitivity(as.undirected(advice), type = "local"), na.rm = TRUE),
+                              mean(transitivity(as.undirected(friend), type = "local"), na.rm = TRUE),
+                              mean(transitivity(as.undirected(work), type = "local"), na.rm = TRUE)),
+                      GCC = c(transitivity(advice, type = "global"),
+                              transitivity(friend, type = "global"),
+                              transitivity(work, type = "global")),
+                      Diameter = c(diameter(as.undirected(advice)),
+                                   diameter(as.undirected(friend)),
+                                   diameter(as.undirected(work))),
+                      Distance = c(mean_distance(advice),
+                                   mean_distance(friend),
+                                   mean_distance(work))
+)
+rownames(metrics) <- c("advice", "friend", "work")
+metrics
+```
+
+## Is it a random network?
+
+### Degree distribution 
+
+```{r}
+mean_degree <- mean(degree(advice))
+
+# Generate Poisson distribution with the same mean degree
+poisson_dist <- function(x, lambda) {
+  dpois(x, lambda)
+}
+
+# Plot degree distribution
+hist(degree(advice), breaks = seq(0, max(degree(advice)) + 1, by = 1), 
+     col = "orange", main = "Degree Distribution of Advice Network")
+
+# Overlay Poisson distribution
+x <- seq(0, max(degree(advice)) + 1, by = 1)
+y <- poisson_dist(x, mean_degree) * length(V(advice))
+lines(x, y, col = "red", lwd = 2)
+
+legend("topright", c("Advice Network", "Poisson Distribution"), 
+       col = c("orange", "red"), lwd = c(10, 2), bty = "n")
+
+```
+
+```{r}
+mean_degree <- mean(degree(friend))
+
+# Generate Poisson distribution with same mean degree
+poisson_dist <- function(x, lambda) {dpois(x, lambda) * vcount(friend)}
+
+# Plot degree distribution and overlay Poisson distribution
+hist(degree(friend), breaks=seq(0, max(degree(friend))+1, by=1), 
+     col="orange", main="Degree Distribution of Friend Network")
+x <- seq(0, max(degree(friend))+1, by=1)
+y <- poisson_dist(x, mean_degree)
+lines(x, y, col="red", lwd=2)
+legend("topright", c("Friend Network", "Poisson Distribution"), 
+       col=c("orange", "red"), lwd=c(10,2), bty="n")
+```
+
+```{r}
+mean_degree <- mean(degree(work))
+
+# Generate Poisson distribution with same mean degree
+poisson_dist <- function(x, lambda) {dpois(x, lambda) * vcount(work)}
+
+# Plot degree distribution and overlay Poisson distribution
+hist(degree(work), breaks=seq(0, max(degree(work))+1, by=1), 
+     col="orange", main="Degree Distribution of Work Network")
+x <- seq(0, max(degree(work))+1, by=1)
+y <- poisson_dist(x, mean_degree)
+lines(x, y, col="red", lwd=2)
+legend("topright", c("Work Network", "Poisson Distribution"), 
+       col=c("orange", "red"), lwd=c(10,2), bty="n")
+```
+
+### generation of random networks
+
+```{r}
+set.seed(1234)
+
+# Function to generate a random network with the same number of nodes and edges as the input network
+generate_random_network <- function(network, num_models) {
+  n <- vcount(network)
+  m <- ecount(network)
+  random_networks <- vector("list", num_models)
+  
+  for (i in 1:num_models) {
+    random_networks[[i]] <- erdos.renyi.game(n, m/(n*(n-1)), directed = TRUE)
+  }
+  
+  return(random_networks)
+}
+
+# Function to calculate average clustering coefficient considering only nonzero degree nodes
+average_clustering_coefficient <- function(network) {
+  return(mean(transitivity(network, type = "average")))
+}
+
+```
+
+```{r}
+set.seed(1234)
+# Generate random networks
+num_models <- 100
+advice_random <- generate_random_network(advice, num_models)
+friend_random <- generate_random_network(friend, num_models)
+work_random <- generate_random_network(work, num_models)
+
+# Calculate average clustering coefficient and average path length for original and random networks
+original_acc <- average_clustering_coefficient(advice)
+random_acc <- sapply(advice_random, average_clustering_coefficient)
+average_acc_random <- mean(random_acc, na.rm = TRUE)
+
+original_apl <- average.path.length(advice, directed = TRUE)
+random_apl <- sapply(advice_random, average.path.length, directed = TRUE)
+average_apl_random <- mean(random_apl, na.rm = TRUE)
+
+# Create a data frame for the table
+metrics_table <- data.frame(
+  Network = c("Advice", "Advice Random"),
+  ClusteringCoefficient = c(original_acc, average_acc_random),
+  AveragePathLength = c(original_apl, average_apl_random)
+)
+
+# Calculate for friend network
+original_acc_friend <- average_clustering_coefficient(friend)
+random_acc_friend <- sapply(friend_random, average_clustering_coefficient)
+average_acc_random_friend <- mean(random_acc_friend, na.rm = TRUE)
+
+original_apl_friend <- average.path.length(friend, directed = TRUE)
+random_apl_friend <- sapply(friend_random, average.path.length, directed = TRUE)
+average_apl_random_friend <- mean(random_apl_friend, na.rm = TRUE)
+
+metrics_table_friend <- data.frame(
+  Network = c("Friend", "Friend Random"),
+  ClusteringCoefficient = c(original_acc_friend, average_acc_random_friend),
+  AveragePathLength = c(original_apl_friend, average_apl_random_friend)
+)
+
+# Calculate for work network
+original_acc_work <- average_clustering_coefficient(work)
+random_acc_work <- sapply(work_random, average_clustering_coefficient)
+average_acc_random_work <- mean(random_acc_work, na.rm = TRUE)
+
+original_apl_work <- average.path.length(work, directed = TRUE)
+random_apl_work <- sapply(work_random, average.path.length, directed = TRUE)
+average_apl_random_work <- mean(random_apl_work, na.rm = TRUE)
+
+metrics_table_work <- data.frame(
+  Network = c("Work", "Work Random"),
+  ClusteringCoefficient = c(original_acc_work, average_acc_random_work),
+  AveragePathLength = c(original_apl_work, average_apl_random_work)
+)
+
+# Combine all metrics tables
+metrics_table <- rbind(metrics_table, metrics_table_friend, metrics_table_work)
+
+# Print the metrics table
+print(metrics_table)
+```
+
+### Pearson's chi-squared test
+
+#### advice network
+```{r}
+set.seed(1234)
+options(scipen=999) # this removes the scientific notation
+N <- gorder(advice)
+kmean <- mean(degree(advice, loops = FALSE))
+p <- kmean/(N-1)
+
+# Observed Frequencies
+deg_dist <- degree.distribution(advice)
+observed <- deg_dist * N
+
+# Expected Binomial ----
+expected_b <- as.integer(dbinom(seq_along(observed), N, p)*N)
+chisq.test(x=observed, y=expected_b, simulate.p.value = TRUE)
+
+# Expected Poisson ----
+expected_p <- as.integer(dpois(seq_along(observed), kmean)*N)
+chisq.test(x=observed, y=expected_p, simulate.p.value = TRUE)
+```
+
+#### friend network 
+```{r}
+set.seed(1234)
+options(scipen=999) # this removes the scientific notation
+N <- gorder(friend)
+kmean <- mean(degree(friend, loops = FALSE))
+p <- kmean/(N-1)
+
+# Observed Frequencies
+deg_dist <- degree.distribution(friend)
+observed <- deg_dist * N
+
+# Expected Binomial ----
+expected_b <- as.integer(dbinom(seq_along(observed), N, p)*N)
+chisq.test(x=observed, y=expected_b, simulate.p.value = TRUE)
+
+# Expected Poisson ----
+expected_p <- as.integer(dpois(seq_along(observed), kmean)*N)
+chisq.test(x=observed, y=expected_p, simulate.p.value = TRUE)
+```
+
+#### work network
+```{r}
+set.seed(1234)
+options(scipen=999) # this removes the scientific notation
+N <- gorder(work)
+kmean <- mean(degree(work, loops = FALSE))
+p <- kmean/(N-1)
+
+# Observed Frequencies
+deg_dist <- degree.distribution(work)
+observed <- deg_dist * N
+
+# Expected Binomial ----
+expected_b <- as.integer(dbinom(seq_along(observed), N, p)*N)
+chisq.test(x=observed, y=expected_b, simulate.p.value = TRUE)
+
+
+# Expected Poisson ----
+expected_p <- as.integer(dpois(seq_along(observed), kmean)*N)
+chisq.test(x=observed, y=expected_p, simulate.p.value = TRUE)
+```
+
+```{r}
+generate_random_network <- function(network) {
+  n <- vcount(network)
+  m <- ecount(network)
+  return(erdos.renyi.game(n, m/(n*(n-1)), directed=TRUE))
+}
+
+advice_random <- generate_random_network(advice)
+friend_random <- generate_random_network(friend)
+work_random <- generate_random_network(work)
+```
+
+### Plotting random and true
+```{r}
+plot_degree_distribution <- function(graph, title) {
+  degree_seq <- degree(graph)
+  hist(degree_seq, main = title, xlab = "Degree", ylab = "Frequency", col = "orange", breaks = seq(0, max(degree_seq), length.out = 8))
+}
+
+# Plotting degree distribution for advice network and its random counterpart
+par(mfrow = c(1, 2)) # Set the plot to have two subplots side by side
+plot_degree_distribution(advice, "Degree Distribution - Advice")
+plot_degree_distribution(advice_random, "Degree Distribution - Random Advice ")
+
+
+# Plotting degree distribution for friend network and its random counterpart
+plot_degree_distribution(friend, "Degree Distribution - Friend")
+plot_degree_distribution(friend_random, "Degree Distribution - Random Friend")
+
+# Plotting degree distribution for work network and its random counterpart
+plot_degree_distribution(work, "Degree Distribution - Work")
+plot_degree_distribution(work_random, "Degree Distribution - Random Work")
+```
+
+## regime check
+```{r}
+mean <- mean(degree(advice, loops = FALSE))
+cat("Average degree:", kmean)
+print("")
+
+N <- gorder(advice)
+cat("Size n:", N)
+print("")
+
+p <- kmean/(N-1)
+cat("Probability:",p)
+print("")
+
+1/(N-1)
+log(N)/N
+```
+```{r}
+kmean <- mean(degree(friend, loops = FALSE))
+cat("Average degree:", kmean)
+print("")
+
+N <- gorder(friend)
+cat("Size n:", N)
+print("")
+
+p <- kmean/(N-1)
+cat("Probability:",p)
+print("")
+
+1/(N-1)
+log(N)/N
+```
+
+```{r}
+kmean <- mean(degree(work, loops = FALSE))
+cat("Average degree:", kmean)
+print("")
+
+N <- gorder(work)
+cat("Size n:", N)
+print("")
+
+p <- kmean/(N-1)
+cat("Probability:",p)
+print("")
+
+1/(N-1)
+log(N)/N
+```
+
+## Do any of the properties (attributes) affect the generation of any kind of link?
+
+-   What does it imply? 
+
+### Assortativity
+
+```{r}
+networks <- list(advice, friend, work)
+attributes <- c("status", "practice", "age", "school", "tenure", "office", "sex")
+assortativity <- matrix(NA, nrow = length(networks), ncol = length(attributes), 
+                        dimnames = list(c("advice", "friend", "work"), attributes))
+
+for (i in seq_along(networks)) {
+  for (j in seq_along(attributes)) {
+    if (attributes[j] %in% names(vertex.attributes(networks[[i]]))) {
+      assortativity[i, j] <- assortativity.nominal(networks[[i]], 
+                                                   vertex.attributes(networks[[i]])[[attributes[j]]])
+    }
+  }
+}
+assortativity
+```
+
+# Diffusion of information 
+
+## Degroot
+```{r}
+# degroot 
+
+deGroot <- function(L_advice, weight, length = 3, niter = 4, seed = 1234){
+  set.seed(seed)
+  # show the 5 different opinions
+  t0 <- as.integer(runif(gorder(L_advice), 1, 6)) # 1 to 6 because the upper limit is exclusive
+  names(t0) <- V(L_advice)$name
+  
+  update_mat <- as.matrix(as_adjacency_matrix(L_advice, attr = weight))
+  output <- vector(mode='list', length=niter)
+  
+  
+  output[[1]] <- as.matrix(t0, ncol=1)
+  for (i in 2:(niter)){
+    output[[i]] <- update_mat %*% output[[i-1]]
+  }
+  for (i in seq_along(output)){
+    for (j in seq_along(output[[i]])){
+      output[[i]][j] <- ifelse(output[[i]][j]%%1 >= 0.5, 
+                               ceiling(output[[i]][j]), 
+                               floor(output[[i]][j]))
+    }
+  }
+  return(output)
+}
+```
+
+
+```{r}
+set.seed(1234)
+plot_deGroot <- function(L_advice, deGroot, nrow, ncol, layout = NULL, low_col = "yellow", high_col = "black"){
+  
+  # node colors (5 colors in this case)
+  temp_cols <- colorRampPalette(c("yellow", "brown", "orange","lightblue","lightgreen"))(length(unique(deGroot[[1]])))
+  temp_cols <- setNames(temp_cols, sort.list(temp_cols, decreasing = TRUE)-1)
+  colors <- vector(mode='list', length=length(deGroot))
+  
+  for (i in seq_along(deGroot)){
+    L_advice <- L_advice %>% 
+      set_vertex_attr(paste0("Opinion", i-1), 
+                      value = deGroot[[i]])
+    for (j in deGroot[[i]]){
+      colors[[i]] <- append(colors[[i]], 
+                            temp_cols[which(names(temp_cols) == j)])
+    }
+  }
+  
+  # Plot
+  if (is.null(layout)){
+    lo <- layout_nicely(L_advice)
+  } else {
+    lo <- layout
+  }
+  
+  fac <- max(eigen_centrality(L_advice)$vector)*20
+  par(mfrow = c(nrow, ncol))
+  for (i in seq_along(deGroot)){
+    plot(L_advice,
+         layout = lo,
+         main = paste("t=",i-1),
+         vertex.color = colors[[i]],
+         vertex.label.color = ifelse(colors[[i]] %in% c("blue", "green"), "red", ifelse(colors[[i]] %in% c("red", "yellow"), "blue", "white")),
+         vertex.label.cex = 1,
+         edge.color = "black",
+         edge.width = 0.3,
+         edge.arrow.size = 0.1,
+         vertex.size = eigen_centrality(L_advice)$vector*fac)
+  }
+}
+```
+
+
+```{r}
+# Question: There is a discussion inside the firm regarding a specific legal procedure. There are 5 different opinions in the firm. Simulate the evolution of these opinions using a DeGroot model with 6 iterations. Explain if a consensus is reached and why, and in it is reached, if it is the optimum one. Explain if you can identify any learning biases and what they imply in the law firm. 
+
+# Model
+set.seed(1234)
+# Run the deGroot function
+deGroot_results = deGroot(L_advice, weight="weight", length = 5, niter = 6)
+
+# Plot the results
+plot_deGroot(L_advice, deGroot_results, nrow=2, ncol=3)
+
+```
+
+
+```{r}
+# Attributes of node 5
+V(L_advice)$id[5] # 4
+V(L_advice)$age[5] # 59
+V(L_advice)$name[5] # "V5"
+V(L_advice)$status[5] # 1 --> partner 
+V(L_advice)$sex[5] # 1 --> male 
+V(L_advice)$office[5] # 2 --> hartford
+V(L_advice)$tenure[5] # 31
+V(L_advice)$practice[5] # 2 --> litigation
+V(L_advice)$school[5] # 2 --> uconn 
+V(L_advice)$coreness[5] # 15
+V(L_advice)$corecolor[5] # "#BF3F00"
+V(L_advice)$membership[5] # 3
+```
+
+```{r}
+# Attributes of node 6
+V(L_advice)$id[6] # 5
+V(L_advice)$age[6] # 55
+V(L_advice)$name[6] # "V6"
+V(L_advice)$status[6] # 1 --> partner 
+V(L_advice)$sex[6] # 1 --> male 
+V(L_advice)$office[6] # 2 --> hartford
+V(L_advice)$tenure[6] # 29
+V(L_advice)$practice[6] # 2 --> corporate
+V(L_advice)$school[6] # 2 --> harvard/yale
+V(L_advice)$coreness[6] # 16
+V(L_advice)$corecolor[6] # "#DF1F00"
+V(L_advice)$membership[6] # 3
+
+```
+
+## ICM 
+
+```{r}
+# ICM 
+set.seed(1234)
+threshold <- function(nneigh) {
+
+  # Could it simply be runif(nneigh)?
+  thrs <- c()
+  for (i in 1:nneigh){
+    thrs[i] <- runif(1, 0, 1)
+  }
+  return(thrs)
+}
+
+adopters <- L_advice$status
+
+
+update_adopters <- function(L_advice, adopters, act_prob, external = TRUE){
+  
+  # Nearest Neighbors of the adopter
+  nearest_neighbors <- data.frame(table(unlist(neighborhood(L_advice, 1, adopters, "out"))))
+  nearest_neighbors <- subset(nearest_neighbors,!(nearest_neighbors[, 1] %in% adopters))
+  
+  # Kept Nodes
+  rnd <- lapply(nearest_neighbors[, 2], threshold)
+  keep <- unlist(lapply(lapply(lapply(rnd, 
+                                      function(x) x < act_prob),
+                               function(x) which(x == TRUE)),
+                        sum))
+  tried <- nrow(nearest_neighbors)
+
+  # New Adopters
+  new_adopters <- as.numeric(as.character(nearest_neighbors[, 1][keep != 0]))
+  class(new_adopters) <- "igraph.vs"
+  
+  # External Adopters
+  if (external){
+    ext_adopters <- sample(as.list(V(L_advice)), 10)
+    adopters <- unique(c(adopters, new_adopters, ext_adopters))
+    return(list(adopters, tried))
+  } else {
+    adopters <- unique(c(adopters, new_adopters))
+    return(list(adopters, tried))
+  }
+}
+
+
+simulate_ICM <- function(L_advice, threshold, external = TRUE){
+  adopters <- sample(as.list(V(L_advice)), size = 1)
+  N <- gorder(L_advice)
+  L <- gsize(L_advice)
+  time_step <- 1
+  tried <- 1
+  
+  activated <- list()
+  activated[[1]] <- adopters
+  
+  while(tried < N){ 
+    up_ad <- update_adopters(L_advice,
+                             activated[[time_step]], 
+                             threshold,
+                             external = external)
+    activated[[time_step + 1]] <- sort(unlist(up_ad[[1]]))
+    tried <- tried + up_ad[[2]]
+    time_step <- time_step + 1
+    if (time_step > L){
+      break
+    }
+    if (identical(activated[[time_step]], activated[[time_step-1]])){
+      break
+    }
+  }
+  
+  return(activated)
+}
+
+result <- simulate_ICM(L_advice, 0.5)  
+print(result)  
+
+
+# Create a vector of sizes based on node degree
+node_sizes <- degree(L_advice)
+
+# Plot the network with the specified sizes
+plot(L_advice, 
+     vertex.size = node_sizes,
+     vertex.color = ifelse(V(L_advice)$name == "V28", "red", "skyblue"), 
+     edge.arrow.size = 0.5, 
+     layout = layout_with_fr(L_advice, area=n^20))
+
+```
+
+
+```{r}
+# attributes of node 28
+V(L_advice)$id[28] # 27
+V(L_advice)$age[28] # 38
+V(L_advice)$name[28] # V28 
+V(L_advice)$status[28] # 1 --> partner 
+V(L_advice)$sex[28] # 1 --> male 
+V(L_advice)$office[28] # 2 --> hartford
+V(L_advice)$tenure[28]
+V(L_advice)$practice[28] # 2 --> corporate 
+V(L_advice)$school[28] # 2 --> uconn 
+V(L_advice)$coreness[28]
+V(L_advice)$corecolor[28]
+V(L_advice)$membership[28]
+
+```
+
+
+```{r}
+set.seed(1234)
+
+summarize_attributes <- function(L_advice, diffusion_stages) {
+  results <- list()
+  
+  for (i in seq_along(diffusion_stages)) {
+    # locating new adopters 
+    if (i == 1) {
+      new_adopters <- diffusion_stages[[i]]
+    } else {
+      new_adopters <- setdiff(diffusion_stages[[i]], diffusion_stages[[i-1]])
+    }
+    
+    # finding attributes of new adopters 
+    attributes <- data.frame(
+      status = V(L_advice)$status[unlist(new_adopters)],  # 1=partner; 2=associate
+      gender = V(L_advice)$sex[unlist(new_adopters)],  # 1=man; 2=woman
+      office = V(L_advice)$office[unlist(new_adopters)],  # 1=Boston; 2=Hartford; 3=Providence
+      years_with_firm = V(L_advice)$tenure[unlist(new_adopters)],
+      age = V(L_advice)$age[unlist(new_adopters)],
+      practice = V(L_advice)$practice[unlist(new_adopters)],  # 1=litigation; 2=corporate
+      law_school = V(L_advice)$school[unlist(new_adopters)]  # 1: Harvard, Yale; 2: UConn; 3: Other
+    )
+    
+    # summary of attributes
+    summary <- data.frame(
+      stage = i,
+      num_new_adopters = length(new_adopters),
+      avg_age = mean(attributes$age, na.rm = TRUE),
+      avg_years_with_firm = mean(attributes$years_with_firm, na.rm = TRUE),
+      percent_male = mean(attributes$gender == 1, na.rm = TRUE),
+      percent_female = mean(attributes$gender == 2, na.rm = TRUE),
+      percent_partner = mean(attributes$status == 1, na.rm = TRUE),
+      percent_associate = mean(attributes$status == 2, na.rm = TRUE),
+      percent_boston = mean(attributes$office == 1, na.rm = TRUE),
+      percent_harft = mean(attributes$office == 2, na.rm = TRUE),
+      percent_provid = mean(attributes$office == 3, na.rm = TRUE),
+      percent_litigation = mean(attributes$practice == 1, na.rm = TRUE),
+      percent_corporate = mean(attributes$practice == 2, na.rm = TRUE),
+      percent_harvard_yale = mean(attributes$law_school == 1, na.rm = TRUE),
+      percent_uconn = mean(attributes$law_school == 2, na.rm = TRUE),
+      percent_other = mean(attributes$law_school == 3, na.rm = TRUE)
+    )
+    
+    results[[i]] <- summary
+  }
+  
+  results_df <- do.call(rbind, results)
+  
+  return(results_df)
+}
+
+# results
+diffusion_stages <- simulate_ICM(L_advice, 0.5)
+summary_df <- summarize_attributes(L_advice, diffusion_stages)
+print(summary_df)
+```
+
+
+```{r}
+# Question:  One lawyer has found that a specific procedure may give him/her some advantage. He wants this to be known in the firm for different reasons (personal promotion and better positioning of the firm itslef, among others). Simulate how this innovation is diffused in the law firm network using an ICM with pure imitation conditions. 
+
+
+# thresholds for adoption
+probabilities = c(0.5, 0.75)
+
+# parameters
+par(mfrow=c(1,2))
+set.seed(1234)
+
+for (prob in probabilities) {
+  
+  plot(NULL, xlim=c(0, 8), ylim=c(0, gorder(L_advice)),
+       ylab="Cumulative Adopters", 
+       xlab="Time", 
+       main = paste("Pure Imitation", "prob = ", prob))
+  
+  for (i in 1:10) {
+    
+    # simulation
+    activated <- simulate_ICM(L_advice, prob, FALSE)
+    
+    activated_seq <- unlist(lapply(activated, length))
+  
+    lines(activated_seq,
+          type = "l",
+          lty = 2,
+          pch = 20,
+          col = "Blue")
+  }
+}
+
+
+```
+
+# Identification of communities
+
+```{r}
+set.seed(1234)
+
+functions <- c(leading_eign = cluster_leading_eigen,
+               louvain = cluster_louvain,
+               walktrap = cluster_walktrap,
+               leiden = cluster_leiden,
+               fast_gr = cluster_fast_greedy)
+```
+
+## Advice network
+
+### Best algorithm
+
+```{r}
+advice_com <- as.undirected(advice)
+
+set.seed(1234)
+
+modularities <- sapply(functions, 
+                       function(x) modularity(advice_com,
+                                              membership = membership(x(advice_com))))
+
+modularities
+
+max_modularity <- max(modularities) # Maximum value
+best_algorithm <- names(modularities)[which.max(modularities)]
+
+cat("Algorithm with the highest modularity value:")
+cat(paste(best_algorithm, max_modularity, sep = " = "))
+```
+
+#### Plot
+
+```{r}
+set.seed(1234)
+
+commu1 <- cluster_louvain(as.undirected(advice))
+
+plot(commu1, advice,
+     vertex.size = ifelse(V(advice)$sex == 1, 10, 20),
+     col = ifelse(V(advice)$office == 1, "red",
+                  ifelse(V(advice)$office == 2, "green", "blue")),
+     edge.arrow.size = 0.02,
+     edge.color = "lightgray",
+     main = "Advice Network")
+```
+
+#### number of communities
+
+```{r}
+set.seed(1234)
+
+communities_num <- length(unique(commu1$membership))
+communities_num
+
+members <- membership(commu1)
+table(members)
+```
+
+## Friend network
+
+### Best algorithm
+
+```{r}
+friend_com <- as.undirected(friend)
+
+set.seed(1234)
+
+modularities <- sapply(functions, 
+                       function(x) modularity(friend_com,
+                                              membership = membership(x(friend_com))))
+
+modularities
+
+max_modularity <- max(modularities) # Maximum value
+best_algorithm <- names(modularities)[which.max(modularities)]
+
+cat("Algorithm with the highest modularity value:")
+cat(paste(best_algorithm, max_modularity, sep = " = "))
+```
+
+#### Plot
+
+```{r}
+set.seed(1234)
+
+commu2 <- cluster_louvain(as.undirected(friend))
+
+plot(commu2, friend,
+     vertex.size = ifelse(V(friend)$sex == 1, 10, 20),
+     col = ifelse(V(friend)$office == 1, "red",
+                  ifelse(V(friend)$office == 2, "green", "blue")),
+     edge.arrow.size = 0.02,
+     edge.color = "lightgray",
+     main = "Friend Network")
+```
+#### number of communities
+
+```{r}
+set.seed(1234)
+
+communities_num <- length(unique(commu2$membership))
+communities_num
+
+members <- membership(commu2)
+table(members)
+```
+
+## Work network
+
+### Best algorithm
+
+```{r}
+work_com <- as.undirected(work)
+
+set.seed(1234)
+
+modularities <- sapply(functions, 
+                       function(x) modularity(work_com,
+                                              membership = membership(x(work_com))))
+
+modularities
+
+max_modularity <- max(modularities) # Maximum value
+best_algorithm <- names(modularities)[which.max(modularities)]
+
+cat("Algorithm with the highest modularity value:")
+cat(paste(best_algorithm, max_modularity, sep = " = "))
+```
+
+#### Plot
+
+```{r}
+set.seed(1234)
+
+commu3 <- cluster_walktrap(as.undirected(work))
+
+plot(commu3, work,
+     vertex.size = ifelse(V(work)$sex == 1, 10, 20),
+     col = ifelse(V(work)$office == 1, "red",
+                  ifelse(V(work)$office == 2, "green", "blue")),
+     edge.arrow.size = 0.02,
+     edge.color = "lightgray",
+     main = "Work Network")
+```
+
+#### number of communities
+
+```{r}
+set.seed(1234)
+
+communities_num <- length(unique(commu3$membership))
+communities_num
+
+members <- membership(commu3)
+table(members)
+```
+
+# ERGM
+
+```{r}
+library(sna)
+library(intergraph)
+library(texreg)
+
+# ergm:
+library(ergm)
+
+# data:
+library(UserNetR)
+
+advice_ergm <- asNetwork(advice)
+work_ergm <- asNetwork(work)
+friend_ergm <- asNetwork(friend)
+```
+
+## null model:
+
+the null model is created by just including the term `edges` as only independent term (equivalent then to including the slope in the GLM)
+
+```{r, warning=FALSE, message = FALSE}
+null <- ergm(advice_ergm ~ edges,
+                control = control.ergm(seed = 101))
+summary(null)
+```
+
+
+## relational model:
+
+```{r,message=FALSE, warning=FALSE}
+relational <- ergm(advice_ergm ~ edges +
+                  edgecov(work_ergm) +
+                  edgecov(friend_ergm),
+                control = control.ergm(seed = 101))
+summary(relational)
+```
+all of them are significant, we wont drop anything 
+
+## attributes
+
+```{r, warning=FALSE, message=FALSE}
+node_attr = ergm(advice_ergm ~ edges +
+                          nodefactor('status') +
+                          nodefactor('practice') +
+                          nodefactor('sex') +
+                          nodefactor('school')+
+                          nodefactor('office'),
+                   control = control.ergm(seed = 101))
+
+summary(node_attr)
+```
+practice = 2 is insignificant 
+sex = 2 is not very significant 
+school = 2 or 3 are not significant
+
+we drop them 
+
+```{r, warning=FALSE, message=FALSE}
+
+node_attr_2 = ergm(advice_ergm ~ edges +
+                          nodefactor('status', level = 2) +
+                          nodefactor('office'),
+                   control = control.ergm(seed = 101))
+
+summary(node_attr_2)
+
+```
+
+## node attributes + reciprocity
+
+```{r ,warning=FALSE, message=FALSE}
+
+node_attr_rec = ergm(advice_ergm ~ edges +
+                          nodefactor('status', level = 2) +
+                          nodefactor('office')+
+                       gwdsp(0.7, fixed = TRUE),
+                   control = control.ergm(seed = 101))
+
+summary(node_attr_rec)
+```
+
+## centralities model
+
+```{r, warning=FALSE, message=FALSE}
+set.vertex.attribute(advice_ergm, "degree", degree(advice_ergm, gmode="graph"))
+set.vertex.attribute(advice_ergm, "betweenness", betweenness(advice_ergm, gmode="graph"))
+set.vertex.attribute(advice_ergm, "closeness", closeness(advice_ergm, gmode="graph"))
+set.vertex.attribute(advice_ergm, "evcent", evcent(advice_ergm, gmode="graph"))
+
+
+model_cent = ergm(advice_ergm ~ edges +
+                     nodecov('degree') +
+                     nodecov('betweenness') +
+                     nodecov('closeness') +
+                     nodecov('evcent'),
+                   control = control.ergm(seed = 101))
+
+summary(model_cent)
+
+```
+betweeness is not significant so we can drop it
+closeness is also irrelevant at 0.05 so we can drop 
+
+
+```{r, warning=FALSE, message=FALSE}
+model_cent_2 = ergm(advice_ergm ~ edges +
+                     nodecov('degree') +
+                     nodecov('evcent'),
+                   control = control.ergm(seed = 101))
+
+summary(model_cent_2)
+```
+
+## dyadic model 
+
+```{r, warning=FALSE, message=FALSE}
+dyadic_model <- ergm(advice_ergm ~ edges +
+                       nodematch('status') + # testing for homophily 
+                       nodematch('practice') +
+                       nodematch('school') +
+                       nodematch('office'),
+     control = control.ergm(seed = 101))
+
+summary(dyadic_model)
+```
+the only irrelevant is school so we drop it
+
+```{r, warning=FALSE, message=FALSE}
+dyadic_model_2 <- ergm(advice_ergm ~ edges +
+                       nodematch('status') + # testing for homophily 
+                       nodematch('practice') +
+                       nodematch('office'),
+     control = control.ergm(seed = 101))
+
+summary(dyadic_model_2)
+```
+## dyadic + reciprocity
+
+```{r, warning=FALSE, message=FALSE}
+dyadic_rec <- ergm(advice_ergm ~ edges +
+                       nodematch('status') + # testing for homophily 
+                       nodematch('practice') +
+                       nodematch('office')+
+                     gwdsp(0.7, fixed = TRUE),
+     control = control.ergm(seed = 101))
+
+summary(dyadic_rec)
+```
+
+## overall model
+
+```{r, warning=FALSE, message=FALSE}
+complete_model <- ergm(advice_ergm ~ edges +
+                         
+                         # attributes 
+                         nodefactor('office')+
+                         
+                         # dyadix
+                         nodematch('status') + # testing for homophily
+                         nodematch('practice') +
+                         nodematch('office') +
+                         
+                         
+                         # relational
+                         edgecov(work_ergm) +
+                         edgecov(friend_ergm) +
+                         
+                         # structural
+                         nodecov('degree') +
+                         nodecov('evcent') +
+                         gwdsp(0.7, fixed = TRUE),
+                       
+                       control = control.ergm(seed = 101))
+               
+summary(complete_model)        
+```
+
+
+```{r}
+table <- texreg::screenreg(list(Attributes = node_attr_2,
+                       Attributes_Recip = node_attr_rec,
+                       Dyadic = dyadic_model_2,
+                       Dyadic_Recip = dyadic_rec,
+                       Relational = relational,
+                       Complete = complete_model))
+
+```
+
+
+```{r}
+table
+```
+
+
+```{r}
+anova(complete_model)
+```
+
+```{r}
+mcmc.diagnostics(complete_model, which = 'plots')
+```
+
+
+
+
+
+
+
+
+
